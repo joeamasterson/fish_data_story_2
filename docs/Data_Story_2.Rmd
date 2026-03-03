@@ -2,31 +2,381 @@
 title: "Data Story 2"
 author: "Joe Masterson"
 date: "2026-02-26"
-output: 
-  flexdashboard::flex_dashboard: 
-   storyboard: true
+output:
+  flexdashboard::flex_dashboard:
+    orientation: columns
+    vertical_layout: fill
 ---
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
+library(flexdashboard)
+library(ggplot2)
+library(dplyr)
+library(knitr)
+library(readr)
+library(plotly)
+library(tidyr)
+install.packages("tinytable",
+  repos = c("https://vincentarelbundock.r-universe.dev", "https://cran.r-project.org")
+)
 ```
 
-## R Markdown
+```{r,echo=FALSE}
+seafood <-read_csv("https://ourworldindata.org/grapher/fish-and-seafood-consumption-per-capita.csv?v=1&csvType=full&useColumnShortNames=true")
 
-This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
 
-When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+fish_rename <- seafood %>%
+  rename(
+    country = entity,
+    abv = code,
+    year = year,
+    fish_per_capita = fish_and_seafood__00002960__food_available_for_consumption__0645pc__kilograms_per_year_per_capita
+  )
 
-```{r cars}
-summary(cars)
+
+seafood_countries <- fish_rename%>%
+  filter(country %in% c("United States",
+                        "Argentina",
+                        "Iceland",
+                        "Australia",
+                        "Japan",
+                        "United Kingdom",
+                        "Cambodia", 
+                        "Norway",
+                        "South Korea",
+                        "Brazil"))
 ```
 
-## Including Plots
+```{r,echo=FALSE}
 
-You can also embed plots, for example:
+fish_1900_2000 <- seafood_countries %>%
+  filter(year >= 1961 & year <= 2000)
 
-```{r pressure, echo=FALSE}
-plot(pressure)
+fish_2000_2022 <- seafood_countries %>%
+  filter(year > 2000 & year <= 2022)
+
 ```
 
-Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
+# Introduction
+
+## Row 1
+
+### Main Goal of this Story Board
+
+**Main Question:** Is rising seafood demand compatible with SDG 14 ?
+
+Seafood consumption has nearly doubled since 1961. While this reflects improved nutrition and economic development, it also places increasing pressure on marine ecosystems. SDG 14 calls for sustainable use of oceans and fisheries. Rising demand—especially among high-income nations raises urgent questions about whether current consumption patterns are ecologically sustainable.
+
+## Right Column
+
+### Global Seafood Consumption Per Person (1961–2022)
+
+```{r}
+library(dplyr)
+library(ggplot2)
+library(ggrepel)
+
+world_ts <- fish_rename %>%
+  filter(country == "World")
+
+ggplot(world_ts, aes(x = year, y = fish_per_capita)) +
+  geom_line(size = 1.2) +
+  labs(
+    title = "Global Seafood Consumption Per Person (1961–2022)",
+    y = "Kg per Person",
+    x = ""
+  ) +
+  theme_minimal()
+
+```
+
+### Average Consumption (2000–2022)
+
+```{r}
+library(scales)
+
+fish_avg <- seafood_countries %>%
+  filter(year >= 2000 & year <= 2022) %>%
+  group_by(country) %>%
+  summarise(
+    avg_fish = mean(fish_per_capita, na.rm = TRUE),
+    .groups = "drop"
+  ) %>%
+  arrange(desc(avg_fish))
+
+ggplot(fish_avg,
+       aes(x = reorder(country, avg_fish),
+           y = avg_fish)) +
+  geom_col(fill = "navy", alpha = 0.85, width = 0.7) +
+  coord_flip() +
+  scale_y_continuous(labels = label_number(suffix = " kg")) +
+  labs(
+    title = "Seafood Consumption by Country",
+    subtitle = "Average per-capita fish consumption, 2000–2022",
+    x = NULL,
+    y = "Average kilograms per person",
+    caption = "Data reflect average annual per-capita fish consumption between 2000 and 2022. Values are means across available years."
+  ) +
+  theme_minimal(base_size = 13) +
+  theme(
+    plot.title = element_text(face = "bold", size = 16),
+    plot.subtitle = element_text(color = "gray"),
+    axis.text.y = element_text(size = 10),
+    panel.grid.major.y = element_blank(),
+    panel.grid.minor = element_blank()
+  )
+
+```
+
+# Trends
+
+## Row 1
+
+### Iceland vs Argentina
+
+```{r}
+fish_rename %>%
+  dplyr::filter(country %in% c("Iceland", "Argentina")) %>%
+  ggplot(aes(x = year, y = fish_per_capita, color = country)) +
+  
+  geom_line(size = 1.4) +
+  
+  scale_y_continuous(labels = scales::label_number(suffix = " kg")) +
+  
+  scale_color_manual(values = c(
+    "Iceland" = "Sky Blue",    
+    "Argentina" = "Forest Green" 
+  )) +
+  
+  labs(
+    title = "Iceland vs Argentina",
+    subtitle = "Per-capita seafood consumption over time (1961–2022)",
+    x = "Year",
+    y = "Kilograms per person",
+    color = NULL
+  ) +
+  
+  theme_minimal(base_size = 16) +
+  
+  theme(
+    plot.title = element_text(face = "bold", size = 20, hjust = 0.5),
+    plot.subtitle = element_text(size = 13, hjust = 0.5),
+    panel.grid.minor = element_blank(),
+    panel.grid.major = element_line(color = "grey"),
+    legend.position = "top",
+    axis.title = element_text(face = "bold")
+  )
+
+```
+
+### Iceland Consumes Far More Seafood Than Argentina
+
+Iceland and Argentina illustrate the inequality in global seafood consumption. Throughout the entire period, Iceland maintains consistently high per-capita seafood intake, reflecting its coastal geography, fishing-based economy, and strong cultural reliance on marine protein. Argentina, by contrast, remains relatively low and stable over time. This persistent gap highlights how seafood consumption is shaped not only by income, but also by geography, trade access, and dietary traditions. From an SDG 14 perspective, countries with historically high consumption levels may exert sustained pressure on marine ecosystems, while lower-consuming nations are less directly tied to global fisheries demand.
+
+## Right Column
+
+### Japan vs Cambodia
+
+```{r}
+library(dplyr)
+library(ggplot2)
+library(scales)
+
+fish_rename %>%
+  filter(country %in% c("Japan", "Cambodia")) %>%
+  ggplot(aes(x = year, y = fish_per_capita, color = country)) +
+  
+  geom_line(size = 1.4) +
+  
+  scale_y_continuous(labels = label_number(suffix = " kg")) +
+  
+  scale_color_manual(values = c(
+    "Japan" = "navy",     
+    "Cambodia" = "red"   
+  )) +
+  
+  labs(
+    title = "Japan vs Cambodia",
+    subtitle = "Per-capita seafood consumption over time (1961–2022)",
+    x = "Year",
+    y = "Kilograms per person",
+    color = NULL
+  ) +
+  
+  theme_minimal(base_size = 16) +
+  
+  theme(
+    plot.title = element_text(face = "bold", size = 20, hjust = 0.5),
+    plot.subtitle = element_text(size = 13, hjust = 0.5),
+    panel.grid.minor = element_blank(),
+    panel.grid.major = element_line(color = "grey85"),
+    legend.position = "top",
+    axis.title = element_text(face = "bold")
+  )
+```
+
+### Japan Stabilizes While Cambodia Rises Rapidly
+
+Japan and Cambodia reveal diverging trajectories in seafood consumption over time. Japan began the period with already elevated seafood intake, peaking in the late twentieth century before stabilizing and slightly declining in recent decades. Cambodia, by contrast, shows steady and rapid growth, particularly in the 2000s, reflecting rising incomes and expanding access to food markets. This divergence suggests that while mature economies may plateau, emerging economies are increasing their demand for marine protein. As more developing nations experience economic growth, global seafood demand may continue to rise, intensifying the sustainability challenges addressed by SDG 14.
+
+# Data Tables
+
+## Left column {data-width=650} {.tabset .tableset-fade}
+
+### Data Table 1
+
+```{r}
+library(kableExtra)
+fish_all_years_avg <- seafood_countries %>%
+  group_by(country) %>%
+  summarise(
+    `Average Fish (kg per capita)` =
+      round(mean(fish_per_capita, na.rm = TRUE), 1),
+    .groups = "drop"
+  ) %>%
+  arrange(desc(`Average Fish (kg per capita)`)) %>%
+  rename(Country = country) %>%
+  arrange(desc(`Average Fish (kg per capita)`))
+ knitr::kable(
+  fish_all_years_avg,
+  caption = "**Long-Term Average Fish Consumption by Country (1961–2022)**",
+  align = c("l", "c"),
+  col.names = c("**Country**", "**Average Fish Consumption (kg per capita)**")
+)
+
+```
+
+Table 1. Long-Term Average Fish Consumption by Country (1961–2022). This table presents the average per-capita fish and seafood consumption (in kilograms per year) across all available years for selected countries. The values reflect long-term dietary patterns and highlight cross-country differences in reliance on marine protein sources.
+
+### Data Table 2
+
+```{r}
+library(dplyr)
+library(tidyr)
+library(knitr)
+
+fish_change <- seafood_countries %>%
+  filter(year %in% c(1961, 2022)) %>%
+  select(country, year, fish_per_capita) %>%
+  pivot_wider(names_from = year, values_from = fish_per_capita) %>%
+  mutate(change = `2022` - `1961`) %>%
+  arrange(desc(change))
+fish_change %>%
+  kable(
+    caption = "**Change in Fish Consumption Per Capita (1961 vs 2022)**",
+    align = c("l", "c", "c", "c"),
+    col.names = c("Country", "1961", "2022", "Change")
+  ) %>%
+  kable_styling(
+    full_width = FALSE,
+    position = "center",
+    font_size = 12
+  )
+
+
+```
+
+Table 2. This table highlights long-term growth in seafood consumption, which has important implications for marine sustainability and SDG 14 (Life Below Water). Rising consumption levels may increase pressure on global fish stocks and marine ecosystems.
+
+### Data Table 3
+
+```{r}
+top_2022 <- seafood_countries %>%
+  filter(year == 2022) %>%
+  arrange(desc(fish_per_capita)) %>%
+  slice_head(n = 10) %>%
+  select(country, fish_per_capita) %>%
+  mutate(fish_per_capita = round(fish_per_capita, 2))
+
+top_2022 %>%
+  kable(
+    caption = "**Top 10 Countries by Per Capita Fish Consumption, 2022**",
+    col.names = c("Country", "Fish Consumption (kg per capita)"),
+    align = c("l", "c")
+  ) %>%
+  kable_styling(
+    full_width = FALSE,
+    position = "center",
+    font_size = 12
+  ) %>%
+  row_spec(0, bold = TRUE)
+```
+
+Table 3. This table ranks the ten countries with the highest average seafood consumption per person in 2022.
+
+## Right column {data-width="350"}
+
+### How many kilograms did a average person consume in 1961?
+
+```{r}
+World_1961<- fish_rename %>%
+  filter(country == "World", year == 1961)
+valueBox("8.969643 kg")
+```
+
+### How many kilogrmas did a average person consume in 2022?
+
+```{r}
+world_2022 <- fish_rename%>%
+  filter(country == "World", year == 2022)
+valueBox("20.1 kg")
+```
+
+# Map: Average Seafood Consumption Per Person (1961–2022)
+
+## M**ap Analysis**
+
+-   This map reveals that high seafood consumption is heavily concentrated in coastal and maritime nations.
+
+-   Iceland stands out dramatically, reflecting its deep economic and cultural reliance on fishing industries.
+
+-   Other high-consuming countries, such as Japan, South Korea, and Norway, also share strong historical ties to marine resources. In contrast, larger continental nations like Argentina and Brazil display comparatively lower per-capita intake.
+
+-   The geographic clustering highlights how access to coastlines, fishing infrastructure, and maritime trade routes shape dietary patterns. From an SDG 14 perspective, this concentration suggests that pressure on marine ecosystems is not evenly distributed across the globe. Instead, it is driven largely by specific coastal economies whose consumption patterns are deeply embedded in national identity and economic structure.
+
+## Right column
+
+```{r}
+library(dplyr)
+library(leaflet)
+library(tibble)
+
+coords <- tibble(
+  country = c("United States","Argentina","Iceland","Australia",
+              "Japan","United Kingdom","Cambodia","Norway",
+              "South Korea","Brazil"),
+  latitude = c(37.0902,-38.4161,64.9631,-25.2744,
+               36.2048,55.3781,12.5657,60.4720,
+               35.9078,-14.2350),
+  longitude = c(-95.7129,-63.6167,-19.0208,133.7751,
+                138.2529,-3.4360,104.9910,8.4689,
+                127.7669,-51.9253)
+)
+
+selected_countries <- coords$country
+
+seafood_avg <- fish_rename %>%
+  filter(country %in% selected_countries,
+         year >= 1961, year <= 2022) %>%
+  group_by(country) %>%
+  summarise(avg_kg_per_person_1961_2022 = mean(fish_per_capita, na.rm = TRUE),
+            .groups = "drop")
+
+coords_avg <- coords %>%
+  left_join(seafood_avg, by = "country")
+
+leaflet(coords_avg) %>%
+  addProviderTiles("Esri.OceanBasemap") %>%
+  addCircleMarkers(
+    lng = ~longitude, lat = ~latitude,
+    radius = ~pmax(4, sqrt(avg_kg_per_person_1961_2022)),
+    popup = ~paste0(country, "<br>",
+                    round(avg_kg_per_person_1961_2022, 1), " kg/person")
+  ) %>%
+  fitBounds(
+    lng1 = min(coords_avg$longitude),
+    lat1 = min(coords_avg$latitude),
+    lng2 = max(coords_avg$longitude),
+    lat2 = max(coords_avg$latitude)
+  )
+```
